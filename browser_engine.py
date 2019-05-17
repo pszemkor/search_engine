@@ -66,50 +66,94 @@ class Engine:
         reduced_list_of_letters = self.get_k_most_common(k)
         # print(reduced_list_of_letters)
         document_dicts, word_freq_in_doc = self.get_files_dicts()
-        document_index_dict = dict()
+        index_document_dict= dict()
         word_index_dict = dict()
         documents_count = len(document_dicts.keys())
         reduced_words_count = len(reduced_list_of_letters)
         data_matrix = csc_matrix((reduced_words_count, documents_count)).toarray()
-        print(documents_count)
-        print(reduced_words_count)
-        print(data_matrix.shape)
+        # print(documents_count)
+        # print(reduced_words_count)
+        # print(data_matrix.shape)
         i = 0
+        for w in reduced_list_of_letters:
+            word_index_dict[w] = i
+            i += 1
+
+        i = 0
+        print(reduced_list_of_letters)
         for d in document_dicts.keys():
             d_dict = document_dicts[d]
-            j = 0
             for w in reduced_list_of_letters:
                 freq = d_dict.get(w, 0)
                 # print(freq)
+                # print(word_index_dict[w])
+                # print(i)
                 if freq > 0:
-                    print(j, i)
-                    data_matrix[j][i] = freq * self.compute_IDF(w, word_freq_in_doc, documents_count)
-                word_index_dict[w] = i
-                j += 1
-            document_index_dict[d] = j
+                    data_matrix[word_index_dict[w]][i] = freq * self.compute_IDF(w, word_freq_in_doc, documents_count)
+            index_document_dict[i] = d
             i += 1
         # print("elo")
-        print(data_matrix)
-        return data_matrix, document_index_dict, word_index_dict
+        # print(data_matrix)
+        return data_matrix, index_document_dict, word_index_dict
 
     def get_L2_norm(self, vector):
         import math
         norm = 0
         for i in range(len(vector)):
-          norm += vector[i] ^ 2
+            norm += vector[i] ** 2
         return math.sqrt(norm)
 
-    def create_versor(self, i, size):
-        v = np.zeros((size, 1))
-        v[i] = 1
-        return v
+    def normalize_vector(self, vector):
+        norm = self.get_L2_norm(vector)
+        if norm == 0:
+            raise Exception("result not found")
+        vector = vector / norm
+        return vector
 
-    def get_cosine_similarity(self, query, matrix, i):
-        pass
+    def create_query_vector(self, query, word_index_dict):
+        ps = PorterStemmer()
+        query = word_tokenize(query)
+        # print(query)
+        query_vector = csc_matrix((len(word_index_dict.keys()), 1)).toarray()
+
+        for word in query:
+            word = ps.stem(word).lower()
+            # print(word)
+            if word in word_index_dict.keys():
+                query_vector[word_index_dict[word]] = 1
+        # print(query_vector)
+        return query_vector
+
+    def get_cosine_similarity_vector(self, query, matrix):
+        return query.transpose() @ matrix
+
+    def get_n_best_indices(self, n, similarity_vec):
+        corr_dict = dict()
+        for i in range(len(similarity_vec)):
+            val = similarity_vec[0][i]
+            corr_dict[val] = i
+        best = sorted(corr_dict.items(), key=lambda tuple: tuple[0])
+        best = list(map(lambda tuple: tuple[1] ,best))
+        return best[::-1][:n]
+
+    def get_n_best_articles(self, query, n, k):
+        data_matrix, index_document_dict, word_index_dict = engine.create_sparse_matrix(k)
+        query_vec = self.create_query_vector(query, word_index_dict)
+
+        # normalization
+        query_vec = self.normalize_vector(query_vec)
+        for i in range(data_matrix.shape[1]):
+            data_matrix[:, i] = self.normalize_vector(data_matrix[:, i])
+
+        similarity_vec = self.get_cosine_similarity_vector(query_vec, data_matrix)
+        best_doc_indices = self.get_n_best_indices(n, similarity_vec)
+        for i in best_doc_indices:
+            print(index_document_dict[i])
 
 
 if __name__ == "__main__":
     engine = Engine("test_data")
-    engine.create_sparse_matrix(10)
+
     # query:
-    q = ""
+    q = "movies lol bla bla xd"
+    engine.get_n_best_articles(q, 2, 10)
