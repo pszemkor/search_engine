@@ -92,6 +92,21 @@ class Engine:
         print(data_matrix)
         return data_matrix, document_index_dict, word_index_dict
 
+    def get_L2_norm(self, vector):
+        import math
+        norm = 0
+        for i in range(len(vector)):
+          norm += vector[i] ^ 2
+        return math.sqrt(norm)
+
+    def create_versor(self, i, size):
+        v = np.zeros((size, 1))
+        v[i] = 1
+        return v
+
+    def get_cosine_similarity(self, query, matrix, i):
+        pass
+
 
 if __name__ == "__main__":
     engine = Engine("test_data")
