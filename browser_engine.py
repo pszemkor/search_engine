@@ -125,7 +125,7 @@ class Engine:
         correllation = self.get_cosine_similarity_vector(query_vec).toarray()
         corr_by_id = sorted([(i, correllation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]), reverse=True)[:n]
         for i, el in enumerate(corr_by_id):
-            print(i + 1, '.', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+            print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
 
 
 if __name__ == "__main__":
