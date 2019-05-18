@@ -101,20 +101,6 @@ class Engine:
         data_matrix = normalize(data_matrix, norm='l2', axis=0)
         return data_matrix, index_document_dict, word_index_dict
 
-    # def get_L2_norm(self, vector):
-    #     import math
-    #     norm = 0
-    #     for i in range(len(vector.toarray())):
-    #         norm += vector.toarray()[i] ** 2
-    #     return math.sqrt(norm)
-    #
-    # def normalize_vector(self, vector):
-    #     norm = self.get_L2_norm(vector)
-    #     if norm == 0:
-    #         raise Exception("result not found")
-    #     vector = vector / norm
-    #     return vector
-
     def create_query_vector(self, query, word_index_dict):
         ps = PorterStemmer()
         query = word_tokenize(query)
@@ -145,9 +131,6 @@ class Engine:
 if __name__ == "__main__":
     engine = Engine("test_data", 500)
 
-    # query:
-    # q = "movies lol bla bla xd"
-    # engine.get_n_best_articles(q, 2, 10)
     while True:
         query = input("your query:\n > ")
         engine.get_n_best_articles(query, 20)
