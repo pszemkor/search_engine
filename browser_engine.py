@@ -1,6 +1,5 @@
-from scipy.spatial import distance
 import numpy as np
-import nltk
+from sklearn.preprocessing import normalize
 from scipy.sparse import *
 from nltk.tokenize import word_tokenize
 import string
@@ -10,8 +9,14 @@ import os
 
 
 class Engine:
-    def __init__(self, data_directory):
+    def __init__(self, data_directory, k):
+        self.documents_count = 0
         self.directory = data_directory
+        data_matrix, index_document_dict, word_index_dict = self.create_sparse_matrix(k)
+        self.data_matrix = data_matrix
+        self.index_document_dict = index_document_dict
+        self.word_index_dict = word_index_dict
+        self.k = k
 
     # todo -> slownik, ktory przechowa w ilu dokumentach wystepuje slowo
     def get_files_dicts(self):
@@ -66,14 +71,11 @@ class Engine:
         reduced_list_of_letters = self.get_k_most_common(k)
         # print(reduced_list_of_letters)
         document_dicts, word_freq_in_doc = self.get_files_dicts()
-        index_document_dict= dict()
+        index_document_dict = dict()
         word_index_dict = dict()
         documents_count = len(document_dicts.keys())
         reduced_words_count = len(reduced_list_of_letters)
-        data_matrix = csc_matrix((reduced_words_count, documents_count)).toarray()
-        # print(documents_count)
-        # print(reduced_words_count)
-        # print(data_matrix.shape)
+        data_matrix = lil_matrix((reduced_words_count, documents_count))
         i = 0
         for w in reduced_list_of_letters:
             word_index_dict[w] = i
@@ -82,6 +84,7 @@ class Engine:
         i = 0
         print(reduced_list_of_letters)
         for d in document_dicts.keys():
+            self.documents_count += 1
             d_dict = document_dicts[d]
             for w in reduced_list_of_letters:
                 freq = d_dict.get(w, 0)
@@ -89,32 +92,34 @@ class Engine:
                 # print(word_index_dict[w])
                 # print(i)
                 if freq > 0:
-                    data_matrix[word_index_dict[w]][i] = freq * self.compute_IDF(w, word_freq_in_doc, documents_count)
+                    data_matrix[word_index_dict[w], i] = freq * self.compute_IDF(w, word_freq_in_doc, documents_count)
             index_document_dict[i] = d
             i += 1
         # print("elo")
         # print(data_matrix)
+        data_matrix = csr_matrix(data_matrix)
+        data_matrix = normalize(data_matrix, norm='l2', axis=0)
         return data_matrix, index_document_dict, word_index_dict
 
-    def get_L2_norm(self, vector):
-        import math
-        norm = 0
-        for i in range(len(vector)):
-            norm += vector[i] ** 2
-        return math.sqrt(norm)
-
-    def normalize_vector(self, vector):
-        norm = self.get_L2_norm(vector)
-        if norm == 0:
-            raise Exception("result not found")
-        vector = vector / norm
-        return vector
+    # def get_L2_norm(self, vector):
+    #     import math
+    #     norm = 0
+    #     for i in range(len(vector.toarray())):
+    #         norm += vector.toarray()[i] ** 2
+    #     return math.sqrt(norm)
+    #
+    # def normalize_vector(self, vector):
+    #     norm = self.get_L2_norm(vector)
+    #     if norm == 0:
+    #         raise Exception("result not found")
+    #     vector = vector / norm
+    #     return vector
 
     def create_query_vector(self, query, word_index_dict):
         ps = PorterStemmer()
         query = word_tokenize(query)
         # print(query)
-        query_vector = csc_matrix((len(word_index_dict.keys()), 1)).toarray()
+        query_vector = lil_matrix((len(word_index_dict.keys()), 1), dtype=np.double)
 
         for word in query:
             word = ps.stem(word).lower()
@@ -122,38 +127,27 @@ class Engine:
             if word in word_index_dict.keys():
                 query_vector[word_index_dict[word]] = 1
         # print(query_vector)
+        query_vector = csr_matrix(query_vector)
+        query_vector = normalize(query_vector)
         return query_vector
 
-    def get_cosine_similarity_vector(self, query, matrix):
-        return query.transpose() @ matrix
+    def get_cosine_similarity_vector(self, query):
+        return query.T.dot(self.data_matrix)
 
-    def get_n_best_indices(self, n, similarity_vec):
-        corr_dict = dict()
-        for i in range(len(similarity_vec)):
-            val = similarity_vec[0][i]
-            corr_dict[val] = i
-        best = sorted(corr_dict.items(), key=lambda tuple: tuple[0])
-        best = list(map(lambda tuple: tuple[1] ,best))
-        return best[::-1][:n]
-
-    def get_n_best_articles(self, query, n, k):
-        data_matrix, index_document_dict, word_index_dict = engine.create_sparse_matrix(k)
-        query_vec = self.create_query_vector(query, word_index_dict)
-
-        # normalization
-        query_vec = self.normalize_vector(query_vec)
-        for i in range(data_matrix.shape[1]):
-            data_matrix[:, i] = self.normalize_vector(data_matrix[:, i])
-
-        similarity_vec = self.get_cosine_similarity_vector(query_vec, data_matrix)
-        best_doc_indices = self.get_n_best_indices(n, similarity_vec)
-        for i in best_doc_indices:
-            print(index_document_dict[i])
+    def get_n_best_articles(self, query, n):
+        query_vec = self.create_query_vector(query, self.word_index_dict)
+        correllation = self.get_cosine_similarity_vector(query_vec).toarray()
+        corr_by_id = sorted([(i, correllation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]), reverse=True)[:n]
+        for i, el in enumerate(corr_by_id):
+            print(i + 1, '.', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
 
 
 if __name__ == "__main__":
-    engine = Engine("test_data")
+    engine = Engine("test_data", 500)
 
     # query:
-    q = "movies lol bla bla xd"
-    engine.get_n_best_articles(q, 2, 10)
+    # q = "movies lol bla bla xd"
+    # engine.get_n_best_articles(q, 2, 10)
+    while True:
+        query = input("your query:\n > ")
+        engine.get_n_best_articles(query, 20)
