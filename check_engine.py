@@ -16,11 +16,13 @@ class Engine:
         self.directory = data_directory
         self.bag_of_words = {}
         self.reduced_list_of_words = []
-        self.data_matrix = {}
+        self.data_matrix = None
         self.index_document_dict = {}
         self.word_index_dict = {}
-        self.k = k
+        self.used_common_words = k
         # _______________
+        self.data_matrix_SVD = None
+        self.svd_components = None
 
     # read/write dictionaries
     # ***********************************************************
@@ -91,7 +93,7 @@ class Engine:
         return math.log10(documents_count / word_freq_in_doc.get(word, 1))
 
     def create_sparse_matrix(self):
-        self.reduced_list_of_words = self.get_k_most_common(self.k)
+        self.reduced_list_of_words = self.get_k_most_common(self.used_common_words)
         # print(self.reduced_list_of_words)
         document_dicts, word_freq_in_doc = self.get_files_dicts()
         index_document_dict = dict()
@@ -147,8 +149,28 @@ class Engine:
 
     def get_n_best_articles(self, query, n):
         query_vec = self.create_query_vector(query, self.word_index_dict)
-        correllation = self.get_cosine_similarity_vector(query_vec).toarray()
-        corr_by_id = sorted([(i, correllation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]),
+        correlation = self.get_cosine_similarity_vector(query_vec).toarray()
+        corr_by_id = sorted([(i, correlation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]),
+                            reverse=True)[:n]
+        for i, el in enumerate(corr_by_id):
+            print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+
+    # #######################################################################
+
+    def create_svd_matrix(self):
+        svd = TruncatedSVD(n_components=700)
+        self.data_matrix_SVD = svd.fit_transform(self.data_matrix)
+        self.svd_components = svd.components_
+        print(self.data_matrix_SVD.shape)
+        print(self.data_matrix.shape)
+
+    def get_cosine_similarity_svd(self, query_vec):
+        return query_vec.T.dot(self.data_matrix_SVD).dot(self.svd_components)
+
+    def get_n_best_articles_svd(self, query, n):
+        query_vec = self.create_query_vector(query, self.word_index_dict)
+        correlation = self.get_cosine_similarity_svd(query_vec)
+        corr_by_id = sorted([(i, correlation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]),
                             reverse=True)[:n]
         for i, el in enumerate(corr_by_id):
             print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
@@ -157,12 +179,11 @@ class Engine:
 if __name__ == "__main__":
     engine = Engine("data", 10000)
     # engine.create_sparse_matrix()
-    # import time
-    # time.sleep(5)
-    # engine.save_data('obj')
     engine.load_data('obj')
+    engine.create_svd_matrix()
+    # engine.save_data('obj')
+    # engine.load_data('obj')
     while True:
         query = input("your query:\n > ")
 
         engine.get_n_best_articles(query, 20)
-
