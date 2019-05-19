@@ -199,15 +199,18 @@ if __name__ == "__main__":
         # query = input("your query:\n > ")
         # query = sg.PopupGetText('Type in your query:', 'Gogle')
 
-        layout = [[sg.Text('Persistent window')],
+        layout = [[sg.Text('Please enter tour query')],
                   [sg.Input(do_not_clear=True)],
-                  [sg.Button('Read'), sg.Exit()]]
-        window = sg.Window('Search', layout)
+                  [sg.Button('Search'), sg.Exit()]]
+        window = sg.Window('Search Engine', layout)
 
         event, query = window.Read()
         if event is None or event == 'Exit':
             break
+
         query = str(query)
+        print(query[2:-2])
+        query = query[2:-2]
         res = engine.get_n_best_articles(query, 20)
         sg.Popup("Your results: \n ", res)
 
