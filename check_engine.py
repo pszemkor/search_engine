@@ -8,6 +8,8 @@ from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 import os
 import pickle
+import PySimpleGUI as sg
+import tkinter
 
 
 class Engine:
@@ -152,8 +154,13 @@ class Engine:
         correlation = self.get_cosine_similarity_vector(query_vec).toarray()
         corr_by_id = sorted([(i, correlation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]),
                             reverse=True)[:n]
+        result = ''
         for i, el in enumerate(corr_by_id):
-            print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+            # print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+            result += str(i + 1) + ':' + str(self.index_document_dict[el[0]]) + ' (correlation: ' + str(
+                round(el[1] * 100, 2)) + ')'
+            result += '\n'
+        return result
 
     # #######################################################################
 
@@ -172,18 +179,35 @@ class Engine:
         correlation = self.get_cosine_similarity_svd(query_vec)
         corr_by_id = sorted([(i, correlation[0, i]) for i in range(self.documents_count)], key=(lambda x: x[1]),
                             reverse=True)[:n]
+        result = ""
         for i, el in enumerate(corr_by_id):
-            print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+            # print(i + 1, ':', self.index_document_dict[el[0]], ' (correlation: ', round(el[1] * 100, 2), ')')
+            result += str(i + 1) + ':' + str(self.index_document_dict[el[0]]) + ' (correlation: ' + str(
+                round(el[1] * 100, 2)) + ')'
+            result += '\n'
+        return result
 
 
 if __name__ == "__main__":
     engine = Engine("data", 10000)
     # engine.create_sparse_matrix()
     engine.load_data('obj')
-    engine.create_svd_matrix()
+    # engine.create_svd_matrix()
     # engine.save_data('obj')
     # engine.load_data('obj')
     while True:
-        query = input("your query:\n > ")
+        # query = input("your query:\n > ")
+        # query = sg.PopupGetText('Type in your query:', 'Gogle')
 
-        engine.get_n_best_articles(query, 20)
+        layout = [[sg.Text('Persistent window')],
+                  [sg.Input(do_not_clear=True)],
+                  [sg.Button('Read'), sg.Exit()]]
+        window = sg.Window('Search', layout)
+
+        event, query = window.Read()
+        if event is None or event == 'Exit':
+            break
+        query = str(query)
+        res = engine.get_n_best_articles(query, 20)
+        sg.Popup("Your results: \n ", res)
+
